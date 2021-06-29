@@ -1,0 +1,1385 @@
+/*
+  第三四行print需要互换位置
+  Screen 1:
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x67);
+    LCD.print(" ");
+    LCD.print("      ++++++++      ");
+    LCD.print(" Time +Start +Tempe-");
+    LCD.print("      +      +rature");
+    LCD.print("      ++++++++      ");
+
+  Screen 2:
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x67);
+    LCD.print(" ");
+    LCD.print("      ++++++++      ");
+    LCD.print("Start +Tempe-+Option");
+    LCD.print("      +rature+      ");
+    LCD.print("      ++++++++      ");
+
+  Screen 3:
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x67);
+    LCD.print(" ");
+    LCD.print("      ++++++++      ");
+    LCD.print("Tempe-+Option+ Game ");
+    LCD.print("rature+      +      ");
+    LCD.print("      ++++++++      ");
+
+  Screen 4:
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x67);
+    LCD.print(" ");
+    LCD.print("      ++++++++      ");
+    LCD.print("Option+ Game + Time ");
+    LCD.print("      +      +      ");
+    LCD.print("      ++++++++      ");
+
+  Screen 5:
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x67);
+    LCD.print(" ");
+    LCD.print("      ++++++++      ");
+    LCD.print(" Game + Time + Start");
+    LCD.print("      +      +      ");
+    LCD.print("      ++++++++      ");
+*/
+
+/*
+  Subscreen 21(start):
+  "                    "
+  "       START?       "
+  " ++++               "
+  " +NO+          YES  "
+  " ++++               "
+  Subscreen 31(start):
+  "       START?       "
+  "              +++++ "
+  "  NO          +YES+ "
+  "              +++++ "
+
+  Subscreen 22(temprature):
+  "Temperature:Degree C"
+  "         +1         "
+  " -10     %3d    +10 "&Temp
+  "         -1         "
+
+  Subscreen 23(option): safe lock, luminance, back
+  " ++++++             "
+  " +safe+ lumi-  back "
+  " +lock+ nance       "
+  " ++++++             "
+  33
+  "       +++++++      "
+  "  safe +lumi-+ back "
+  "  lock +nance+      "
+  "       +++++++      "
+  43
+  "              ++++++"
+  "  safe  lumi- +back+"
+  "  lock  nance +    +"
+  "              ++++++"
+
+  subscreen 24(game/music): game, music, back
+
+  subscreen 25(time):
+  "Time:               "
+  "  +1     +1     +1  "
+  " [%2d]    %2d     %2d  "
+  "  -1     -1     -1  "
+  35
+  "  Hr     Min    Sec "
+  "  +1     +1     +1  "
+  "  %2d    [%2d]    %2d  "
+  "  -1     -1     -1  "
+  45
+  "  Hr     Min    Sec "
+  " +1   +1   +1       "
+  "          [  ] AUTO "
+  " -1   -1   -1       "
+  55
+  " Hr   Min  Sec      "
+  " +1   +1   +1       "
+  "              [AUTO]"
+  " -1   -1   -1       "
+
+*/
+
+/*
+  sub-sub-screen
+
+  screen 231(started): progress; Lock, Game, Music, Stop
+
+  " Progress:    %     "
+  "      ++++++++      "
+  " Game + Lock + Stop "
+  "      ++++++++      "
+
+  331
+  " Progress:    %     "
+  "      ++++++++      "
+  " Lock + Stop + Music"
+  "      ++++++++      "
+
+  431
+
+  " Progress:    %     "
+  "      ++++++++      "
+  " Stop + Music+ Game "
+  "      ++++++++      "
+
+  531
+
+  " Progress:    %     "
+  "      ++++++++      "
+  "Music + Game + Lock "
+  "      ++++++++      "
+
+  screen 223(safe lock):
+  "                    "
+  "Open safe lock?     "
+  "   ++++             "
+  "   +NO+    YES      "
+  "   ++++             "
+
+
+  screen 323(safe lock):
+
+  "Open safe lock?     "
+  "          +++++     "
+  "    NO    +YES+     "
+  "          +++++     "
+
+  screen 2323 (locked):
+  "                    "
+  " Press all the      "
+  "  buttons to unlock."
+  "                    "
+
+
+  screen 233(brightness):
+
+  "Brightness(2-8):    "
+  "       +1           "
+  "      [  ]          "0x1A
+  "       -1           "
+
+  screen 1000(finished):
+  "                    "
+  "Operation Completed."
+  "       ++++++       "
+  "       + OK +       "
+  "       ++++++       "
+
+*/
+
+/*
+  "  .  .  .  .  .  .  "
+  game screen:
+  " 0  0  0  0 |Score: "
+  " 0  0  0  0 |       "
+  " 0  0  0  0 |       "
+  " 0  0  0  0 | Back  "
+
+*/
+
+#include <MsTimer2.h>
+#include <SoftwareSerial.h>
+
+// #include "DHT.h"
+// #define DHTPIN 12
+// #define DHTTYPE DHT11
+// DHT dht(DHTPIN, DHTTYPE);
+
+#define txPin 1
+SoftwareSerial LCD = SoftwareSerial(0, txPin);
+const int LCDdelay = 3; //increase if LCD is unstable
+
+//time related
+byte ms200 = 0, seconds = 0, minutes = 0;
+byte timeSec = 0, timeMin = 0, timeHr = 0;
+int timeStart = 0, timeStop = 0; 
+int timePaused = 0, timeContinued = 0, timePaused0 = 0, timePaused1 = 0;
+//screen
+int screen = 1;
+//backlight
+byte light = 2, light0 = 2;
+//buttons
+boolean right = 0, up = 0, left = 0, down = 0, ok = 0, Switch = 0, door = 0;
+boolean rightReleased = 1, upReleased = 1, leftReleased = 1, downReleased = 1, okReleased = 1, switchReleased = 1, doorOpened = 1;
+boolean changed = 0;
+//function
+byte progress;
+boolean AUTO = 1;
+boolean start = 0, game = 0;
+boolean emerStop = 0, Lock = 0;
+//sensor
+byte Temp = 30;
+// int startHumid, Humid, TempDHT;
+//game
+byte bracket = 0, mole = 0;
+int timeMol, score = 0;
+boolean firstRound = 0;
+
+void screenDisplay(int x)
+{
+  if (x == 1)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print("      ++++++++      ");
+    LCD.print("      +      +rature");
+    LCD.print(" Time +Start +Tempe-");
+    LCD.print("      ++++++++      ");
+  }
+  else if (x == 2)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print("      ++++++++      ");
+    LCD.print("      +rature+      ");
+    LCD.print("Start +Tempe-+Option");
+    LCD.print("      ++++++++      ");
+  }
+  else if (x == 3)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print("      ++++++++      ");
+    LCD.print("rature+      +      ");
+    LCD.print("Tempe-+Option+ Game ");
+    LCD.print("      ++++++++      ");
+  }
+  else if (x == 4)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print("      ++++++++      ");
+    LCD.print("      +      +      ");
+    LCD.print("Option+ Game + Time ");
+    LCD.print("      ++++++++      ");
+  }
+  else if (x == 5)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print("      ++++++++      ");
+    LCD.print("      +      +      ");
+    LCD.print(" Game + Time + Start");
+    LCD.print("      ++++++++      ");
+    if (AUTO)
+    {
+      LCD.write(0xFE);
+      LCD.write(0x45);
+      LCD.write(0x1B);
+      LCD.print("[auto]");
+    }
+  }
+  else if (x == 21)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print("       START?       ");
+    LCD.print(" +NO+          YES  ");
+    LCD.print(" ++++               ");
+    LCD.print(" ++++               ");
+  }
+  else if (x == 31)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print("       START?       ");
+    LCD.print("  NO          +YES+ ");
+    LCD.print("              +++++ ");
+    LCD.print("              +++++ ");
+  }
+  else if (x == 22)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print("Temperature: 0-50 C ");
+    LCD.print(" -10            +10 ");
+    LCD.print("         +1         ");
+    LCD.print("         -1         ");
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x1D);
+    LCD.print(Temp);
+  }
+  else if (x == 23)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print(" ++++++             ");
+    LCD.print(" +lock+ nance       ");
+    LCD.print(" +safe+ lumi-  back ");
+    LCD.print(" ++++++             ");
+  }
+  else if (x == 33)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print("       +++++++      ");
+    LCD.print("  lock +nance+      ");
+    LCD.print("  safe +lumi-+ back ");
+    LCD.print("       +++++++      ");
+  }
+  else if (x == 43)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print("              ++++++");
+    LCD.print("  lock  nance +    +");
+    LCD.print("  safe  lumi- +back+");
+    LCD.print("              ++++++");
+  }
+  else if (x == 25)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print(" Hr  Min  Sec       ");
+    LCD.print("[  ]           AUTO ");
+    LCD.print(" +1   +1   +1       ");
+    LCD.print(" -1   -1   -1       ");
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x15);
+    LCD.print(timeHr);
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x1A);
+    LCD.print(timeMin);
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x1F);
+    LCD.print(timeSec);
+  }
+  else if (x == 35)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print(" Hr  Min  Sec       ");
+    LCD.print("     [  ]      AUTO ");
+    LCD.print(" +1   +1   +1       ");
+    LCD.print(" -1   -1   -1       ");
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x15);
+    LCD.print(timeHr);
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x1A);
+    LCD.print(timeMin);
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x1F);
+    LCD.print(timeSec);
+  }
+  else if (x == 45)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print(" Hr  Min  Sec       ");
+    LCD.print("          [  ] AUTO ");
+    LCD.print(" +1   +1   +1       ");
+    LCD.print(" -1   -1   -1       ");
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x15);
+    LCD.print(timeHr);
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x1A);
+    LCD.print(timeMin);
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x1F);
+    LCD.print(timeSec);
+  }
+  else if (x == 55)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print(" Hr  Min  Sec       ");
+    LCD.print("              [AUTO]");
+    LCD.print(" +1   +1   +1       ");
+    LCD.print(" -1   -1   -1       ");
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x15);
+    LCD.print(timeHr);
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x1A);
+    LCD.print(timeMin);
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x1F);
+    LCD.print(timeSec);
+  }
+  else if (x == 231)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print(" Progress:    %     ");
+    LCD.print(" Game + Lock + Stop ");
+    LCD.print("      ++++++++      ");
+    LCD.print("      ++++++++      ");
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0xB);
+    LCD.print(progress);
+  }
+  else if (x == 331)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print(" Progress:    %     ");
+    LCD.print(" Lock + Stop + Game ");
+    LCD.print("      ++++++++      ");
+    LCD.print("      ++++++++      ");
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0xB);
+    LCD.print(progress);
+  }
+  else if (x == 2331)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print(" Stop?              ");
+    LCD.print("  +No+        Yes   ");
+    LCD.print("  ++++              ");
+    LCD.print("  ++++              ");
+  }
+  else if (x == 3331)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print(" Stop?              ");
+    LCD.print("   No        +Yes+  ");
+    LCD.print("             +++++  ");
+    LCD.print("             +++++  ");
+  }
+  else if (x == 431)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print(" Progress:    %     ");
+    LCD.print(" Stop + Game + Lock ");
+    LCD.print("      ++++++++      ");
+    LCD.print("      ++++++++      ");
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0xB);
+    LCD.print(progress);
+  }
+  else if (x == 233)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print("Brightness(1-8):    ");
+    LCD.print("      [  ]          ");
+    LCD.print("       +1           ");
+    LCD.print("       -1           ");
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x1C);
+    LCD.print(light);
+  }
+  else if (x == 223)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print("Open safe lock?     ");
+    LCD.print("   +NO+    YES      ");
+    LCD.print("   ++++             ");
+    LCD.print("   ++++             ");
+  }
+  else if (x == 323)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print("Open safe lock?     ");
+    LCD.print("    NO    +YES+     ");
+    LCD.print("          +++++     ");
+    LCD.print("          +++++     ");
+  }
+  else if (x == 2323 || x == 2231)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print("Locked.             ");
+    LCD.print("  buttons to unlock.");
+    LCD.print(" Press all the      ");
+    LCD.print("                    ");
+  }
+  else if (screen == 24 || screen == 2431)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print("Play:Catch the Mole?");
+    LCD.print("  +No+        Yes   ");
+    LCD.print("  ++++              ");
+    LCD.print("  ++++              ");
+  }
+  else if (screen == 34 || screen == 3431)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print("Play:Catch the Mole?");
+    LCD.print("   No        +Yes+  ");
+    LCD.print("             +++++  ");
+    LCD.print("             +++++  ");
+  }
+
+  else if (x == 1000)  //function finished
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print("Operation Completed.");
+    LCD.print("       + OK +       ");
+    LCD.print("       ++++++       ");
+    LCD.print("       ++++++       ");
+  }
+  else if (screen==20231)
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print(" Paused:            ");
+    LCD.print("  Door is opened.   ");
+    LCD.print("                    ");
+    LCD.print("                    ");
+  }
+  else if (emerStop) //emergency stoped
+  {
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(1 - 1);
+    LCD.print("Emergency Stoped.   ");
+    LCD.print(" Press all the      ");
+    LCD.print("                    ");
+    LCD.print("  buttons to quit  .");
+  }
+}
+
+void buttonfunction()
+{
+  /*           0
+                 0
+        000000000000
+                 0
+               0
+  */
+  if (right && changed == 0 && Lock == 0 && emerStop == 0 && game == 0)
+  {
+    clearLCD();
+    if (screen < 10)
+    {
+      screen++;
+      if (screen == 6) screen = 1;
+    }
+    else if (screen == 22)
+    {
+      Temp += 10;
+      if (Temp > 50) Temp -= 50;
+    }
+    else if (screen == 2431 || screen == 2331)
+    {
+      screen += 1000;
+    }
+    else if (screen == 233 || screen == 31 || screen == 43 || screen == 55 || screen == 34 || screen == 3431 || screen == 3331)
+    {
+      //disabled
+    }
+    else if (screen > 100)
+    {
+      screen += 100;
+      if (screen == 531) screen = 231;
+    }
+    else
+    {
+      screen += 10;
+    }
+
+    changed++;
+  }
+
+  /*
+      0
+    0
+    000000000000
+    0
+      0
+  */
+  if (left && changed == 0 && Lock == 0 && emerStop == 0 && game == 0)
+  {
+    clearLCD();
+    if (screen < 10)
+    {
+      screen--;
+    }
+    else if (screen == 22)
+    {
+      Temp -= 10;
+      if (Temp < 0) Temp += 50;
+    }
+    else if (screen == 233 || screen == 21 || screen == 25 || screen == 23 || screen == 24 || screen == 2431 || screen == 2331)
+    {
+      //disabled
+    }
+    else if (screen == 3431 || screen == 3331)
+    {
+      screen -= 1000;
+    }
+    else if (screen > 100)
+    {
+      screen -= 100;
+      if (screen == 131) screen = 431;
+    }
+    else
+    {
+      screen -= 10;
+    }
+    if (screen == 0) screen = 5;
+
+    changed++;
+  }
+
+
+
+  /*
+     000   0   0
+    0   0  0  0
+    0   0  000
+    0   0  0  0
+     000   0   0
+  */
+  if (ok && changed == 0 && Lock == 0 && emerStop == 0 && game == 0)
+  {
+    clearLCD();
+    if (screen < 10)
+    {
+      screen += 20;
+    }
+    else if (screen == 23 || screen == 33)
+    {
+      screen += 200;
+    }
+    else if (screen == 31 && AUTO)
+    {
+      // startHumid=dht.readHumidity();
+      // screen += 200;
+      // start=1;
+      LCD.write(0xFE);
+      LCD.write(0x45);
+      LCD.write(1 - 1);
+      LCD.print("We apologize that   ");
+      LCD.print("  be demontrated.   ");
+      LCD.print(" this function can't");
+      LCD.print(" Back in 5 seconds. ");
+      delay(5000);
+      screen = 1;
+    }
+    else if (screen == 31 && AUTO == 0)
+    {
+      start = 1;
+      timePaused=0;
+      screen += 200;
+      timeStart = 60 * minutes + seconds;
+      timeStop = 3600 * timeHr + 60 * timeMin + timeSec + timeStart;
+    }
+    else if (screen == 25 || screen == 35 || screen == 45)
+    {
+      if (timeHr != 0 || timeMin != 0 || timeSec != 0) AUTO = 0;
+      else AUTO = 1;
+      screen = screen % 10;
+    }
+    else if (screen == 55)
+    {
+      AUTO = 1;
+      screen = screen % 10;
+    }
+    else if (screen == 323 || screen == 231)
+    {
+      Lock = 1;
+      screen += 2000;
+    }
+    else if (screen == 431 || screen == 331)
+    {
+      screen += 2000;
+    }
+    else if (screen == 2431 || screen == 2331)
+    {
+      screen -= 2000;
+    }
+    else if (screen == 3331)
+    {
+      digitalWrite(11, 0);
+      screen = 1;
+      start = 0;
+    }
+    else if (screen == 3431 || screen == 34)
+    {
+      game = 1;
+      screen += 20000;
+    }
+    else if (screen == 1000)
+    {
+      screen -= 999;
+    }
+    else if (screen == 1001)
+    {
+      screen -= 1000;
+    }
+    else
+    {
+      screen = screen % 10;
+    }
+    changed++;
+  }
+
+  /*
+      0
+    0 0 0
+    0   0   0
+      0
+      0
+  */
+  if (up && changed == 0 && Lock == 0 && emerStop == 0 && game == 0)
+  {
+    clearLCD;
+    if (screen == 22)
+    {
+      Temp++;
+      if (Temp > 50) Temp -= 51;
+    }
+    else if (screen == 25)
+    {
+      timeHr++;
+      if (timeHr == 24) timeHr = 0;
+    }
+    else if (screen == 35)
+    {
+      timeMin++;
+      if (timeMin == 60) timeMin = 0;
+    }
+    else if (screen == 45)
+    {
+      timeSec++;
+      if (timeSec == 60) timeSec = 0;
+    }
+    else if (screen == 233)
+    {
+      light++;
+      if (light > 8) light = 8;
+    }
+
+    changed++;
+  }
+
+  /*
+      0
+      0
+    0   0   0
+    0 0 0
+      0
+  */
+  if (down && changed == 0 && Lock == 0 && emerStop == 0 && game == 0)
+  {
+    clearLCD;
+    if (screen == 22)
+    {
+      Temp--;
+      if (Temp < 0) Temp += 51;
+    }
+    else if (screen == 25)
+    {
+      timeHr--;
+      if (timeHr == 255) timeHr = 23;
+    }
+    else if (screen == 35)
+    {
+      timeMin--;
+      if (timeMin == 255) timeMin = 59;
+    }
+    else if (screen == 45)
+    {
+      timeSec--;
+      if (timeSec == 255) timeSec = 59;
+    }
+    else if (screen == 233)
+    {
+      light--;
+      if (light < 1) light = 1;
+    }
+
+    changed++;
+  }
+
+  if (Switch && changed == 0)
+  {
+    emerStop = 1;
+    screen += 20000;
+    start = 0;
+    game = 0; bracket = 0;
+
+    changed++;
+  }
+  
+  if (doorOpened&&screen==231)
+  {
+  screen+= 20000;
+  }
+  if (door&&screen==20231)
+  {
+  screen-= 20000;
+  }
+  
+  if (leftReleased && rightReleased && upReleased && downReleased && okReleased && switchReleased)
+  {
+    changed = 0;
+  }
+
+  if (left && right  && down && ok && up && changed == 0)
+  {
+    if (Lock && emerStop == 0)
+    {
+      Lock = 0;
+      if (screen == 2323)
+      {
+        screen = 1;
+      }
+      if (screen == 2231)
+      {
+        screen = 231;
+      }
+
+      changed++;
+    }
+
+    if (emerStop)
+    {
+      emerStop = 0;
+      if (Lock && screen == 22323)
+      {
+        screen -= 20000;
+      }
+      else if (Lock && screen == 22231)
+      {
+        screen = 2323;
+      }
+      else
+      {
+        screen = 1;
+      }
+
+      changed++;
+    }
+  }
+}
+
+void functioning()
+{
+  if (start == 1 && emerStop == 0)
+  {
+    if (game == 0 && Lock == 0 && door)
+    {
+      digitalWrite(11, 1); //use LED to represent motor and fans functioning
+    }
+
+    if (AUTO)
+    {
+      // Humid = dht.readHumidity();
+      // TempDHT=dht.readTemperature();
+      // if(doorOpened)
+      // {
+      //   digitalWrite(11, 0);
+      // }
+      // progress = (startHumid - 20 - Humid) / (startHumid - 20);
+      // if(Temp>=5)
+      // {
+      //   if (TempDHT>Temp) digitalWrite(11,0);
+      //   else if(TempDHT<=Temp-2) digitalWrite(11,1);
+      // }
+      // else
+      // {
+      //   if (TempDHT>=Temp+2) digitalWrite(11,0);
+      //   else if(TempDHT<Temp) digitalWrite(11,1);
+      // }
+      // if (Humid <= 20 )
+      // {
+      //   digitalWrite(11, 0);
+      //   if(screen>=231&&screen<=431)
+      //   {
+      //     start = 0;
+      //     screen=1000;
+      //   }
+      // }
+    }
+    else
+    {
+      if (doorOpened)
+      {
+        timePaused0 = 60 * minutes + seconds - timeContinued;
+        digitalWrite(11, 0);
+      }
+      else 
+      {
+        timeContinued = 60 * minutes + seconds;
+      }
+      if(door&&timePaused1!=timePaused0)
+      {
+        timePaused+=timePaused0;
+        timePaused1=timePaused0;
+      }
+      progress = (60 * minutes + seconds - timeStart - timePaused) * 100 / (timeStop - timeStart);
+      // if(Temp>=5)
+      // {
+      //   if (TempDHT>Temp) digitalWrite(11,0);
+      //   else if(TempDHT<=Temp-2) digitalWrite(11,1);
+      // }
+      // else
+      // {
+      //   if (TempDHT>=Temp+2) digitalWrite(11,0);
+      //   else if(TempDHT<Temp) digitalWrite(11,1);
+      // }
+      if ((60 * minutes + seconds - timeStart - timePaused) >= (timeStop - timeStart))
+      {
+        progress = 100;
+
+        digitalWrite(11, 0);
+        if (screen >= 231 && screen <= 431)
+        {
+          start = 0;
+          screen = 1000;
+        }
+      }
+    }
+  }
+  else if (emerStop == 1)
+  {
+    digitalWrite(11, 0);
+  } 
+}
+
+
+void setup()
+{
+  pinMode(txPin, OUTPUT);//LCD
+  pinMode(2, INPUT_PULLUP); // right button
+  pinMode(3, INPUT_PULLUP); // ok button
+  pinMode(4, INPUT_PULLUP); // up button
+  pinMode(5, INPUT_PULLUP); // down button
+  pinMode(6, INPUT_PULLUP); // left button
+  pinMode(7, INPUT_PULLUP);//Door switch
+  pinMode(10, INPUT_PULLUP);//switch
+  pinMode(11, OUTPUT);//LED
+
+  LCD.begin(9600);
+
+  // dht.begin();
+
+  backlight(2); // acceptable values 1 to 8
+
+  MsTimer2::set(200, timebase);
+  MsTimer2::start(); // start the ISR
+}
+
+void loop()
+{
+
+  buttonStatus();
+
+  buttonfunction();
+
+  screenDisplay(screen);
+
+  functioning();
+
+  if (game && emerStop != 1)
+  {
+    Game();
+  }
+
+  if (light0 != light) backlight(light);
+  light0 = light;
+
+}
+
+void timebase()
+{
+  ms200++;
+
+  if (ms200 == 5)
+  {
+    seconds++;
+    ms200 = 0;
+  }
+
+  if (seconds == 60)
+  {
+    minutes++;
+    seconds = 0;
+  }
+
+  delay(LCDdelay);
+}
+
+void clearLCD()
+{
+  LCD.write(0xFE);
+  LCD.write(0x51);
+  delay(LCDdelay);
+}
+
+void backlight(int x)
+{
+  LCD.write(0xFE);
+  LCD.write(0x53);
+  LCD.write(x);
+  delay(1);
+}
+
+void buttonStatus()
+{
+  if (digitalRead(2))
+  {
+    right = 0;
+    rightReleased = 1;
+  }
+  else
+  {
+    if (rightReleased) {
+      right = 1;
+      rightReleased = 0;
+    }
+  }
+
+  if (digitalRead(3))
+  {
+    ok = 0;
+    okReleased = 1;
+  }
+  else
+  {
+    if (okReleased) {
+      ok = 1;
+      okReleased = 0;
+    }
+  }
+
+  if (digitalRead(4))
+  {
+    up = 0;
+    upReleased = 1;
+  }
+  else
+  {
+    if (upReleased) {
+      up = 1;
+      upReleased = 0;
+    }
+  }
+
+  if (digitalRead(5))
+  {
+    down = 0;
+    downReleased = 1;
+  }
+  else
+  {
+    if (downReleased) {
+      down = 1;
+      downReleased = 0;
+    }
+  }
+
+  if (digitalRead(6))
+  {
+    left = 0;
+    leftReleased = 1;
+  }
+  else
+  {
+    if (leftReleased) {
+      left = 1;
+      leftReleased = 0;
+    }
+  }
+
+  if (digitalRead(10))
+  {
+    Switch = 0;
+    switchReleased = 1;
+  }
+  else
+  {
+    if (switchReleased)
+    {
+      Switch = 1;
+      switchReleased = 0;
+    }
+  }
+
+  if (digitalRead(7)==0)
+  {
+    door = 0;
+    doorOpened = 1;
+  }
+  else
+  {
+    if (doorOpened)
+    {
+      door = 1;
+      doorOpened = 0;
+    }
+  }
+}
+
+void Game()
+{
+  if (firstRound == 0)
+  {
+    timeMol = minutes * 60 + seconds;
+
+    randomSeed(seconds);
+    mole = random(0, 16);
+
+    if (score == 0)
+    {
+      LCD.write(0xFE);
+      LCD.write(0x45);
+      LCD.write(1 - 1);
+      LCD.print("Instruction:        ");
+      LCD.print(" Catch the mole (0).");
+      LCD.print("Press OK to         ");
+      LCD.print("       [ OK ]       ");
+    }
+    else
+    {
+      LCD.write(0xFE);
+      LCD.write(0x45);
+      LCD.write(1 - 1);
+      LCD.print(" Game Resumed.      ");
+      LCD.print("       [ OK ]       ");
+      LCD.print("                    ");
+      LCD.print("                    ");
+    }
+
+    if (ok && changed == 0)
+    {
+      firstRound++;
+      changed++;
+    }
+  }
+  else
+  {
+    if (bracket != 16)
+    {
+      LCD.write(0xFE);
+      LCD.write(0x45);
+      LCD.write(1 - 1);
+      LCD.print(" _  _  _  _ |Score: ");
+      LCD.print(" _  _  _  _ |       ");
+      LCD.print(" _  _  _  _ |       ");
+      LCD.print(" _  _  _  _ | Back  ");
+    }
+    else
+    {
+      LCD.write(0xFE);
+      LCD.write(0x45);
+      LCD.write(1 - 1);
+      LCD.print(" _  _  _  _ |Score: ");
+      LCD.print(" _  _  _  _ |       ");
+      LCD.print(" _  _  _  _ |       ");
+      LCD.print(" _  _  _  _ |[Back] ");
+    }
+
+    LCD.write(0xFE);
+    LCD.write(0x45);
+    LCD.write(0x36);
+    LCD.print(score);
+
+    if ((minutes * 60 + seconds - timeMol) >= (6 - 0.005 * score))
+    {
+      mole = random(0, 16);
+      timeMol = minutes * 60 + seconds;
+    }
+
+    if (bracket >= 0 && bracket <= 3) //cursor position
+    {
+      LCD.write(0xFE);
+      LCD.write(0x45);
+      LCD.write(bracket * 3);
+      LCD.print("[");
+      LCD.write(0xFE);
+      LCD.write(0x4A);
+      LCD.print("]");
+    }
+    else if (bracket >= 4 && bracket <= 7)
+    {
+
+      LCD.write(0xFE);
+      LCD.write(0x45);
+      LCD.write(28 + 3 * bracket);
+      LCD.print("[");
+      LCD.write(0xFE);
+      LCD.write(0x4A);
+      LCD.print("]");
+    }
+    else if (bracket >= 8 && bracket <= 11)
+    {
+      LCD.write(0xFE);
+      LCD.write(0x45);
+      LCD.write(bracket * 3 - 4);
+      LCD.print("[");
+      LCD.write(0xFE);
+      LCD.write(0x4A);
+      LCD.print("]");
+    }
+    else if (bracket >= 12 && bracket <= 15)
+    {
+      LCD.write(0xFE);
+      LCD.write(0x45);
+      LCD.write(bracket * 3 + 48);
+      LCD.print("[");
+      LCD.write(0xFE);
+      LCD.write(0x4A);
+      LCD.print("]");
+    }
+
+    if (mole >= 0 && mole <= 3) //mole position
+    {
+      LCD.write(0xFE);
+      LCD.write(0x45);
+      LCD.write(mole * 3 + 1);
+      LCD.print("0");
+    }
+    else if (mole >= 4 && mole <= 7)
+    {
+      LCD.write(0xFE);
+      LCD.write(0x45);
+      LCD.write(29 + mole * 3);
+      LCD.print("0");
+    }
+    else if (mole >= 8 && mole <= 11)
+    {
+      LCD.write(0xFE);
+      LCD.write(0x45);
+      LCD.write(mole * 3 - 3);
+      LCD.print("0");
+    }
+    else if (mole >= 12 && mole <= 15)
+    {
+      LCD.write(0xFE);
+      LCD.write(0x45);
+      LCD.write(mole * 3 + 49);
+      LCD.print("0");
+    }
+
+    if (right && changed == 0)
+    {
+      if (bracket != 16 && bracket != 11 && bracket != 7 && bracket != 3)
+      {
+        bracket += 1;
+      }
+
+      changed++;
+    }
+
+    if (left && changed == 0)
+    {
+      if (bracket != 0 && bracket != 4 && bracket != 8 && bracket != 12)
+      {
+        bracket--;
+      }
+
+      changed++;
+    }
+
+    if (right && changed == 0)
+    {
+      bracket++;
+      if (bracket == 16) bracket = 16;
+
+      changed++;
+    }
+
+    if (up && changed == 0)
+    {
+      if (bracket >= 4 && bracket != 16) bracket -= 4;
+
+      changed++;
+    }
+
+    if (down && changed == 0)
+    {
+      if (bracket <= 11) bracket += 4;
+
+      changed++;
+    }
+
+    if (ok && changed == 0)
+    {
+      if (mole == bracket)
+      {
+        score += 10.9 - 0.01 * score;
+
+        timeMol = minutes * 60 + seconds;
+        mole = random(0, 16);
+      }
+
+      if (bracket == 16)
+      {
+        game = 0;
+        bracket = 0; firstRound = 0;
+
+        clearLCD();
+        if (screen == 23431) screen -= 23000;
+        else screen = 4;
+      }
+
+      changed++;
+    }
+  }
+  if (leftReleased && rightReleased && upReleased && downReleased && okReleased)
+  {
+    changed = 0;
+  }
+
+}
